@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentinel-tunnel
+spec:
+  selector:
+    matchLabels:
+      app: sentinel-tunnel
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: sentinel-tunnel
+    spec:
+      affinity:
+         podAntiAffinity:
+           preferredDuringSchedulingIgnoredDuringExecution:
+           - weight: 100
+             podAffinityTerm:
+               labelSelector:
+                 matchExpressions:
+                   - key: app
+                     operator: In
+                     values: ["sentinel-tunnel"]
+               topologyKey: kubernetes.io/hostname
+      containers:
+      - name: sentinel-tunnel
+        args:
+        - --consul-endpoint=http://consul-server.kube-system:8500
+        image: k8s-test/sentinel_tunnel:v0.0.1
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 300m
+            memory: 256Mi
+        ports:
+        - containerPort: 26379
