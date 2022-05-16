@@ -32,10 +32,11 @@ func (c *Sentinel_connection) parseResponse() (request []string, err error, is_c
 	var ret []string
 	buf, _, e := c.reader.ReadLine()
 	if e != nil {
-		return nil, errors.New("failed read line from client"), client_closed
+		c.reconnectToSentinel()
+		// return nil, errors.New("case1, failed read line from client"), client_closed
 	}
 	if len(buf) == 0 {
-		return nil, errors.New("failed read line from client"), client_closed
+		return nil, errors.New("case2, failed read line from client"), client_closed
 	}
 	if buf[0] != '*' {
 		return nil, errors.New("first char in mbulk is not *"), client_not_closed
@@ -48,10 +49,10 @@ func (c *Sentinel_connection) parseResponse() (request []string, err error, is_c
 	for i := 0; i < mbulk_size; i++ {
 		buf1, _, e1 := c.reader.ReadLine()
 		if e1 != nil {
-			return nil, errors.New("failed read line from client"), client_closed
+			return nil, errors.New("case3, failed read line from client"), client_closed
 		}
 		if len(buf1) == 0 {
-			return nil, errors.New("failed read line from client"), client_closed
+			return nil, errors.New("case4, failed read line from client"), client_closed
 		}
 		if buf1[0] != '$' {
 			return nil, errors.New("first char in bulk is not $"), client_not_closed
@@ -59,7 +60,7 @@ func (c *Sentinel_connection) parseResponse() (request []string, err error, is_c
 		bulk_size, _ := strconv.Atoi(string(buf1[1:]))
 		buf2, _, e2 := c.reader.ReadLine()
 		if e2 != nil {
-			return nil, errors.New("failed read line from client"), client_closed
+			return nil, errors.New("case5, failed read line from client"), client_closed
 		}
 		bulk := string(buf2)
 		if len(bulk) != bulk_size {
@@ -89,6 +90,9 @@ func (c *Sentinel_connection) retrieveAddressByDbName() {
 		addr, err, is_client_closed := c.getMasterAddrByNameFromSentinel(db_name)
 		if err != nil {
 			fmt.Println("err: ", err.Error())
+			fmt.Println("reconnect to sentinel")
+			c.reconnectToSentinel()
+			c.retrieveAddressByDbName()
 			if !is_client_closed {
 				c.get_master_address_by_name_reply <- &Get_master_addr_reply{
 					reply: "",
@@ -144,8 +148,8 @@ func NewSentinelConnection(addresses []string) (*Sentinel_connection, error) {
 		get_master_address_by_name:       make(chan string),
 		get_master_address_by_name_reply: make(chan *Get_master_addr_reply),
 		current_sentinel_connection:      nil,
-		reader: nil,
-		writer: nil,
+		reader:                           nil,
+		writer:                           nil,
 	}
 
 	if !connection.reconnectToSentinel() {
